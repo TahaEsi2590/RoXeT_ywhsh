@@ -19,32 +19,58 @@ import io.nekohasekai.libbox.WIFIState
 import java.net.InetSocketAddress
 import java.net.NetworkInterface
 
-/** Android bridge used by sing-box libbox to create the system VPN tunnel. */
-class ReNoPlatformInterface(private val service: VpnService) : PlatformInterface {
+/**
+ * Android platform bridge for sing-box libbox.
+ */
+class ReNoPlatformInterface(
+    private val service: VpnService
+) : PlatformInterface {
+
     private var tun: android.os.ParcelFileDescriptor? = null
 
     override fun usePlatformAutoDetectInterfaceControl(): Boolean = true
 
     override fun autoDetectInterfaceControl(fd: Int) {
-        if (!service.protect(fd)) error("Unable to protect sing-box socket")
+        if (!service.protect(fd)) {
+            error("Unable to protect sing-box socket")
+        }
     }
 
     override fun openTun(options: TunOptions): Int {
-        if (VpnService.prepare(service) != null) error("VPN permission is not granted")
-        val dns = runCatching { options.dnsServerAddress.value }.getOrDefault("1.1.1.1")
-        val mtu = if (options.mtu > 0) options.mtu else 1500
+        if (VpnService.prepare(service) != null) {
+            error("VPN permission is not granted")
+        }
+
+        val dns = runCatching {
+            options.dnsServerAddress.value
+        }.getOrDefault("1.1.1.1")
+
+        val mtu = if (options.mtu > 0) {
+            options.mtu
+        } else {
+            1500
+        }
+
         val builder = service.Builder()
             .setSession("ReNo VPN")
             .setMtu(mtu)
             .addAddress("172.19.0.1", 30)
             .addRoute("0.0.0.0", 0)
             .addDnsServer(dns)
-        tun?.close()
-        tun = builder.establish() ?: error("Unable to establish Android VPN interface")
+
+        runCatching {
+            tun?.close()
+        }
+
+        tun = builder.establish()
+            ?: error("Unable to establish Android VPN interface")
+
         return tun!!.fd
     }
 
-    override fun useProcFS(): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
+    override fun useProcFS(): Boolean {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
+    }
 
     override fun findConnectionOwner(
         ipProtocol: Int,
@@ -53,94 +79,252 @@ class ReNoPlatformInterface(private val service: VpnService) : PlatformInterface
         destinationAddress: String,
         destinationPort: Int
     ): ConnectionOwner {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) error("Connection owner lookup unavailable")
-        val cm = service.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            error("Connection owner lookup unavailable")
+        }
+
+        val cm = service.getSystemService(
+            Context.CONNECTIVITY_SERVICE
+        ) as ConnectivityManager
+
         val uid = cm.getConnectionOwnerUid(
             ipProtocol,
             InetSocketAddress(sourceAddress, sourcePort),
             InetSocketAddress(destinationAddress, destinationPort)
         )
-        if (uid == Process.INVALID_UID) error("connection owner not found")
+
+        if (uid == Process.INVALID_UID) {
+            error("Connection owner not found")
+        }
+
+        val packages =
+            service.packageManager.getPackagesForUid(uid)?.toList()
+                ?: emptyList()
+
         val owner = ConnectionOwner()
+
         owner.userId = uid
-        owner.userName = service.packageManager.getPackagesForUid(uid)?.firstOrNull() ?: ""
+        owner.userName = packages.firstOrNull() ?: ""
+
         owner.setAndroidPackageNames(
-            StringArray((service.packageManager.getPackagesForUid(uid) ?: emptyArray()).iterator())
+            StringArray(packages)
         )
+
         return owner
     }
 
-    override fun startDefaultInterfaceMonitor(listener: InterfaceUpdateListener) {
-        val cm = service.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    override fun startDefaultInterfaceMonitor(
+        listener: InterfaceUpdateListener
+    ) {
+        val cm = service.getSystemService(
+            Context.CONNECTIVITY_SERVICE
+        ) as ConnectivityManager
+
         val network = cm.activeNetwork
-        val lp = network?.let { cm.getLinkProperties(it) }
-        val name = lp?.interfaceName.orEmpty()
-        val index = runCatching { NetworkInterface.getByName(name)?.index ?: -1 }.getOrDefault(-1)
-        listener.updateDefaultInterface(name, index, false, false)
+
+        val linkProperties = network?.let {
+            cm.getLinkProperties(it)
+        }
+
+        val interfaceName =
+            linkProperties?.interfaceName.orEmpty()
+
+        val interfaceIndex = runCatching {
+            NetworkInterface
+                .getByName(interfaceName)
+                ?.index
+                ?: -1
+        }.getOrDefault(-1)
+
+        listener.updateDefaultInterface(
+            interfaceName,
+            interfaceIndex,
+            false,
+            false
+        )
     }
 
-    override fun closeDefaultInterfaceMonitor(listener: InterfaceUpdateListener) = Unit
+    override fun closeDefaultInterfaceMonitor(
+        listener: InterfaceUpdateListener
+    ) {
+        // Nothing to close.
+    }
 
     override fun getInterfaces(): NetworkInterfaceIterator {
-        val cm = service.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val list = mutableListOf<BoxNetworkInterface>()
-        val all = runCatching {
-            NetworkInterface.getNetworkInterfaces()?.toList() ?: emptyList()
+        val cm = service.getSystemService(
+            Context.CONNECTIVITY_SERVICE
+        ) as ConnectivityManager
+
+        val result = mutableListOf<BoxNetworkInterface>()
+
+        val allInterfaces = runCatching {
+            NetworkInterface
+                .getNetworkInterfaces()
+                ?.toList()
+                ?: emptyList()
         }.getOrDefault(emptyList())
 
         for (network in cm.allNetworks) {
-            val lp = cm.getLinkProperties(network) ?: continue
-            val nc = cm.getNetworkCapabilities(network) ?: continue
-            val name = lp.interfaceName ?: continue
-            val ni = all.firstOrNull { it.name == name } ?: continue
+
+            val linkProperties =
+                cm.getLinkProperties(network)
+                    ?: continue
+
+            val capabilities =
+                cm.getNetworkCapabilities(network)
+                    ?: continue
+
+            val name =
+                linkProperties.interfaceName
+                    ?: continue
+
+            val javaInterface =
+                allInterfaces.firstOrNull {
+                    it.name == name
+                } ?: continue
+
             val item = BoxNetworkInterface()
+
             item.name = name
-            item.index = ni.index
-            item.mtu = runCatching { ni.mtu }.getOrDefault(1500)
-            item.dnsServer = StringArray(lp.dnsServers.mapNotNull { it.hostAddress }.iterator())
-            item.addresses = StringArray(
-                ni.interfaceAddresses.map { "${it.address.hostAddress}/${it.networkPrefixLength}" }.iterator()
+            item.index = javaInterface.index
+
+            item.mtu = runCatching {
+                javaInterface.mtu
+            }.getOrDefault(1500)
+
+            item.dnsServer = StringArray(
+                linkProperties.dnsServers
+                    .mapNotNull {
+                        it.hostAddress
+                    }
             )
+
+            item.addresses = StringArray(
+                javaInterface.interfaceAddresses.map {
+                    "${it.address.hostAddress}/${it.networkPrefixLength}"
+                }
+            )
+
             item.type = when {
-                nc.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> io.nekohasekai.libbox.Libbox.InterfaceTypeWIFI
-                nc.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> io.nekohasekai.libbox.Libbox.InterfaceTypeCellular
-                nc.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> io.nekohasekai.libbox.Libbox.InterfaceTypeEthernet
-                else -> io.nekohasekai.libbox.Libbox.InterfaceTypeOther
+
+                capabilities.hasTransport(
+                    NetworkCapabilities.TRANSPORT_WIFI
+                ) -> {
+                    io.nekohasekai.libbox.Libbox.InterfaceTypeWIFI
+                }
+
+                capabilities.hasTransport(
+                    NetworkCapabilities.TRANSPORT_CELLULAR
+                ) -> {
+                    io.nekohasekai.libbox.Libbox.InterfaceTypeCellular
+                }
+
+                capabilities.hasTransport(
+                    NetworkCapabilities.TRANSPORT_ETHERNET
+                ) -> {
+                    io.nekohasekai.libbox.Libbox.InterfaceTypeEthernet
+                }
+
+                else -> {
+                    io.nekohasekai.libbox.Libbox.InterfaceTypeOther
+                }
             }
-            item.metered = !nc.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
-            list += item
+
+            item.metered =
+                !capabilities.hasCapability(
+                    NetworkCapabilities.NET_CAPABILITY_NOT_METERED
+                )
+
+            result += item
         }
-        return InterfaceArray(list.iterator())
+
+        return InterfaceArray(result)
     }
 
-    override fun underNetworkExtension(): Boolean = false
-    override fun includeAllNetworks(): Boolean = false
-    override fun readWIFIState(): WIFIState? = null
- override fun systemCertificates(): StringIterator =
-    object : StringIterator {
-        override fun len(): Int = 0
-        override fun hasNext(): Boolean = false
-        override fun next(): String = ""
+    override fun underNetworkExtension(): Boolean {
+        return false
     }
-    override fun clearDNSCache() = Unit
-    override fun sendNotification(notification: Notification) = Unit
 
-    override fun registerMyInterface(name: String?) = Unit
+    override fun includeAllNetworks(): Boolean {
+        return false
+    }
+
+    override fun readWIFIState(): WIFIState? {
+        return null
+    }
+
+    override fun systemCertificates(): StringIterator {
+        return StringArray(emptyList())
+    }
+
+    override fun clearDNSCache() {
+        // Nothing to clear.
+    }
+
+    override fun sendNotification(
+        notification: Notification
+    ) {
+        // Notifications are handled by Android service/UI.
+    }
+
+    override fun registerMyInterface(
+        name: String?
+    ) {
+        // Nothing required here.
+    }
 
     fun closeTun() {
-        runCatching { tun?.close() }
+        runCatching {
+            tun?.close()
+        }
+
         tun = null
     }
 
-    class StringArray(private val iterator: Iterator<String>) : StringIterator {
-        override fun hasNext(): Boolean = iterator.hasNext()
-        override fun next(): String = iterator.next()
+    /**
+     * libbox StringIterator.
+     *
+     * The generated Kotlin API requires len().
+     */
+    class StringArray(
+        private val values: List<String>
+    ) : StringIterator {
+
+        private var index = 0
+
+        override fun len(): Int {
+            return values.size
+        }
+
+        override fun hasNext(): Boolean {
+            return index < values.size
+        }
+
+        override fun next(): String {
+            if (!hasNext()) {
+                return ""
+            }
+
+            return values[index++]
+        }
     }
 
+    /**
+     * libbox NetworkInterfaceIterator.
+     */
     private class InterfaceArray(
-        private val iterator: Iterator<BoxNetworkInterface>
+        private val values: List<BoxNetworkInterface>
     ) : NetworkInterfaceIterator {
-        override fun hasNext(): Boolean = iterator.hasNext()
-        override fun next(): BoxNetworkInterface = iterator.next()
+
+        private var index = 0
+
+        override fun hasNext(): Boolean {
+            return index < values.size
+        }
+
+        override fun next(): BoxNetworkInterface {
+            return values[index++]
+        }
     }
 }
