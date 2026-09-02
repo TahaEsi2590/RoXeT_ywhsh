@@ -116,7 +116,12 @@ class ReNoPlatformInterface(private val service: VpnService) : PlatformInterface
     override fun underNetworkExtension(): Boolean = false
     override fun includeAllNetworks(): Boolean = false
     override fun readWIFIState(): WIFIState? = null
-    override fun systemCertificates(): StringIterator = StringArray(emptyList<String>().iterator())
+ override fun systemCertificates(): StringIterator =
+    object : StringIterator {
+        override fun len(): Int = 0
+        override fun hasNext(): Boolean = false
+        override fun next(): String = ""
+    }
     override fun clearDNSCache() = Unit
     override fun sendNotification(notification: Notification) = Unit
 
