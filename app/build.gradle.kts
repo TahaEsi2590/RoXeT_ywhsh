@@ -50,9 +50,14 @@ android {
     }
 
     buildTypes {
+        debug {
+            signingConfig =
+                signingConfigs.getByName("debugConfig")
+        }
+
         release {
-            isCrunchPngs = false
             isMinifyEnabled = false
+            isCrunchPngs = false
 
             proguardFiles(
                 getDefaultProguardFile(
@@ -64,11 +69,6 @@ android {
             signingConfig =
                 signingConfigs.getByName("release")
         }
-
-        debug {
-            signingConfig =
-                signingConfigs.getByName("debugConfig")
-        }
     }
 
     compileOptions {
@@ -78,8 +78,6 @@ android {
 
     buildFeatures {
         compose = true
-
-        // Required for BuildConfig.DEBUG
         buildConfig = true
     }
 
@@ -98,7 +96,10 @@ android {
 secrets {
     propertiesFileName = ".env"
     defaultPropertiesFileName = ".env.example"
-    ignoreList.add("FIREBASE_APPCHECK_DEBUG_TOKEN")
+
+    ignoreList.add(
+        "FIREBASE_APPCHECK_DEBUG_TOKEN"
+    )
 }
 
 googleServices {
@@ -108,62 +109,163 @@ googleServices {
 
 dependencies {
 
-    implementation(platform(libs.androidx.compose.bom))
-    implementation(platform(libs.firebase.bom))
+    // -----------------------------------------------------
+    // Android / Compose
+    // -----------------------------------------------------
 
-    implementation(libs.androidx.activity.compose)
-
-    implementation(libs.androidx.compose.material.icons.core)
-    implementation(libs.androidx.compose.material.icons.extended)
-    implementation(libs.androidx.compose.material3)
-    implementation(libs.androidx.compose.ui)
-    implementation(libs.androidx.compose.ui.graphics)
-    implementation(libs.androidx.compose.ui.tooling.preview)
-
-    implementation(libs.androidx.core.ktx)
-
-    implementation(libs.androidx.lifecycle.runtime.compose)
-    implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.androidx.lifecycle.viewmodel.compose)
-
-    implementation(libs.androidx.room.ktx)
-    implementation(libs.androidx.room.runtime)
-
-    implementation(libs.converter.moshi)
-
-    implementation(libs.firebase.ai)
-
-    implementation(libs.firebase.appcheck.recaptcha)
-    implementation(libs.firebase.appcheck.debug)
-
-    implementation(libs.kotlinx.coroutines.android)
-    implementation(libs.kotlinx.coroutines.core)
-
-    implementation(libs.logging.interceptor)
-
-    implementation(libs.moshi.kotlin)
-    implementation(libs.okhttp)
-
-    implementation(libs.retrofit)
-
-    // =========================================================
-    // sing-box libbox
-    // Real VPN core used by ReNo VPN
-    // =========================================================
     implementation(
-        "com.github.sing-box-android:libbox:1.13.14"
+        platform(libs.androidx.compose.bom)
     )
 
-    // =========================================================
-    // Tests
-    // =========================================================
-
-    testImplementation(
-        libs.androidx.compose.ui.test.junit4
+    implementation(
+        libs.androidx.activity.compose
     )
 
+    implementation(
+        libs.androidx.compose.material.icons.core
+    )
+
+    implementation(
+        libs.androidx.compose.material.icons.extended
+    )
+
+    implementation(
+        libs.androidx.compose.material3
+    )
+
+    implementation(
+        libs.androidx.compose.ui
+    )
+
+    implementation(
+        libs.androidx.compose.ui.graphics
+    )
+
+    implementation(
+        libs.androidx.compose.ui.tooling.preview
+    )
+
+    implementation(
+        libs.androidx.core.ktx
+    )
+
+    // -----------------------------------------------------
+    // Lifecycle
+    // -----------------------------------------------------
+
+    implementation(
+        libs.androidx.lifecycle.runtime.compose
+    )
+
+    implementation(
+        libs.androidx.lifecycle.runtime.ktx
+    )
+
+    implementation(
+        libs.androidx.lifecycle.viewmodel.compose
+    )
+
+    // -----------------------------------------------------
+    // Room
+    // -----------------------------------------------------
+
+    implementation(
+        libs.androidx.room.ktx
+    )
+
+    implementation(
+        libs.androidx.room.runtime
+    )
+
+    ksp(
+        libs.androidx.room.compiler
+    )
+
+    // -----------------------------------------------------
+    // Firebase
+    // -----------------------------------------------------
+
+    implementation(
+        platform(libs.firebase.bom)
+    )
+
+    implementation(
+        libs.firebase.ai
+    )
+
+    implementation(
+        libs.firebase.appcheck.recaptcha
+    )
+
+    implementation(
+        libs.firebase.appcheck.debug
+    )
+
+    // -----------------------------------------------------
+    // Networking
+    // -----------------------------------------------------
+
+    implementation(
+        libs.okhttp
+    )
+
+    implementation(
+        libs.retrofit
+    )
+
+    implementation(
+        libs.converter.moshi
+    )
+
+    implementation(
+        libs.logging.interceptor
+    )
+
+    // -----------------------------------------------------
+    // Moshi
+    // -----------------------------------------------------
+
+    implementation(
+        libs.moshi.kotlin
+    )
+
+    ksp(
+        libs.moshi.kotlin.codegen
+    )
+
+    // -----------------------------------------------------
+    // Kotlin Coroutines
+    // -----------------------------------------------------
+
+    implementation(
+        libs.kotlinx.coroutines.android
+    )
+
+    implementation(
+        libs.kotlinx.coroutines.core
+    )
+
+    // -----------------------------------------------------
+    // sing-box libbox 1.13.14
+    //
+    // IMPORTANT:
+    // File must exist at:
+    //
+    // app/libs/libbox.aar
+    //
+    // Do NOT use the JitPack dependency here.
+    // -----------------------------------------------------
+
+    implementation(
+        files("libs/libbox.aar")
+    )
+
+    // -----------------------------------------------------
+    // Unit Tests
+    // -----------------------------------------------------
+
     testImplementation(
-        libs.androidx.core
+        libs.junit
     )
 
     testImplementation(
@@ -171,7 +273,7 @@ dependencies {
     )
 
     testImplementation(
-        libs.junit
+        libs.androidx.core
     )
 
     testImplementation(
@@ -194,9 +296,13 @@ dependencies {
         libs.roborazzi.junit.rule
     )
 
-    // =========================================================
+    testImplementation(
+        libs.androidx.compose.ui.test.junit4
+    )
+
+    // -----------------------------------------------------
     // Android Tests
-    // =========================================================
+    // -----------------------------------------------------
 
     androidTestImplementation(
         platform(libs.androidx.compose.bom)
@@ -218,13 +324,9 @@ dependencies {
         libs.androidx.runner
     )
 
-    // =========================================================
+    // -----------------------------------------------------
     // Debug
-    // =========================================================
-
-    debugImplementation(
-        libs.androidx.compose.ui.tooling
-    )
+    // -----------------------------------------------------
 
     debugImplementation(
         libs.androidx.compose.ui.tooling
@@ -232,17 +334,5 @@ dependencies {
 
     debugImplementation(
         libs.androidx.compose.ui.test.manifest
-    )
-
-    // =========================================================
-    // KSP
-    // =========================================================
-
-    ksp(
-        libs.androidx.room.compiler
-    )
-
-    ksp(
-        libs.moshi.kotlin.codegen
     )
 }
