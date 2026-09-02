@@ -1,27 +1,64 @@
 package com.example.vpn
 
 import android.app.Application
+import com.example.BuildConfig
 import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.libbox.SetupOptions
 import java.io.File
 import java.util.Locale
 
 class ReNoApplication : Application() {
+
     override fun onCreate() {
         super.onCreate()
+
         runCatching {
-            Libbox.setLocale(Locale.getDefault().toLanguageTag().replace("-", "_"))
-            val working = getExternalFilesDir(null) ?: filesDir
+
+            Libbox.setLocale(
+                Locale.getDefault()
+                    .toLanguageTag()
+                    .replace("-", "_")
+            )
+
+            val working =
+                getExternalFilesDir(null)
+                    ?: filesDir
+
             working.mkdirs()
-            Libbox.setup(SetupOptions().also {
-                it.basePath = filesDir.path
-                it.workingPath = working.path
-                it.tempPath = cacheDir.path
-                it.fixAndroidStack = true
-                it.logMaxLines = 3000
-                it.debug = BuildConfig.DEBUG
-            })
-            Libbox.redirectStderr(File(working, "singbox-stderr.log").path)
-        }.onFailure { it.printStackTrace() }
+
+            val options =
+                SetupOptions().apply {
+
+                    basePath =
+                        filesDir.path
+
+                    workingPath =
+                        working.path
+
+                    tempPath =
+                        cacheDir.path
+
+                    fixAndroidStack =
+                        true
+
+                    logMaxLines =
+                        3000
+
+                    debug =
+                        BuildConfig.DEBUG
+                }
+
+            Libbox.setup(options)
+
+            Libbox.redirectStderr(
+                File(
+                    working,
+                    "singbox-stderr.log"
+                ).path
+            )
+
+        }.onFailure {
+            it.printStackTrace()
+        }
     }
 }
