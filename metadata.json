@@ -1,0 +1,8 @@
+{
+  "name": "ReNo VPN",
+  "description": "Fast and secure ReNo VPN with Persian localization, live upload/download speed monitors, and hidden admin config management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
