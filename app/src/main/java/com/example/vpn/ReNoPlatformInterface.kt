@@ -267,13 +267,6 @@ class ReNoPlatformInterface(
     ) {
         // Notifications are handled by Android service/UI.
     }
-
-    override fun registerMyInterface(
-        name: String?
-    ) {
-        // Nothing required here.
-    }
-
     fun closeTun() {
         runCatching {
             tun?.close()
